@@ -84,7 +84,7 @@ WITH cte AS (
     FROM recipe r
     WHERE r.output_item IN input
     ORDER BY sort,r.output_item)
-SELECT output_quantity, output_item, input_item, input_quantity
+SELECT output_item, output_quantity, input_item, input_quantity
 FROM cte;
 
 -- +-----------------+-------------+------------+----------------+
