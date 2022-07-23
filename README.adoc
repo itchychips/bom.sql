@@ -1,0 +1,11 @@
+= README
+
+== Intro
+
+This is a prototype for a bill of materials application, which is something
+I've had in the back of my mind for years and am just now getting to the point
+where I can use the right tool for the job without being too bored.
+
+== License
+
+This project is AGPLv3+.  See COPYING for license.
