@@ -28,7 +28,6 @@ INSERT INTO recipe VALUES
 
 SELECT *
 FROM recipe;
-
 -- +---------------+-----------------+-------------+----------------+
 -- |  output_item  | output_quantity | input_item  | input_quantity |
 -- +---------------+-----------------+-------------+----------------+
@@ -71,6 +70,7 @@ WHERE output_item = 'Ladder'
 -- multiple variant recipes enter the equation.
 --
 -- We use this to evolve the rest of the CTEs below.
+
 WITH cte AS (
     WITH RECURSIVE
         input(n) AS (
@@ -128,6 +128,7 @@ FROM cte;
 -- the intial SELECT in the RECURSIVE CTE.
 --
 -- In this instance, the quantity 8 is enough to clear out any decimals.
+
 WITH cte AS (
     WITH RECURSIVE
         input(output_item, output_quantity, input_item, input_quantity) AS (
@@ -316,7 +317,105 @@ ORDER BY sort, output_item;
 
 -- Damn, that's good.
 
--- TODO: Go over using this when there are multiple recipe variants.
+-- Now let's go back to Minecraft.  We'll try to make multiple recipe variants work.
+
+DROP TABLE recipe;
+
+CREATE TABLE recipe (
+    recipe_variant INTEGER,
+    output_item STRING,
+    output_quantity REAL,
+    input_item STRING,
+    input_quantity REAL,
+    PRIMARY KEY(recipe_variant, output_item, input_item));
+
+INSERT INTO recipe VALUES
+    (1, 'Wood plank', 4, 'Log', 1),
+    (1, 'Stick', 4, 'Wood plank', 2),
+    (1, 'Ladder', 3, 'Stick', 7),
+    (1, 'Stone pickaxe', 1, 'Stick', 2),
+    (1, 'Stone pickaxe', 1, 'Cobblestone', 3),
+    (1, 'Iron ingot', 1, 'Iron ore', 1),
+    (1, 'Iron ingot', 1, 'Coal', 0.125),
+    (2, 'Iron ingot', 1, 'Iron dust', 1),
+    (2, 'Iron ingot', 1, 'Dusty coal', 0.125),
+    (3, 'Iron ingot', 0.5, 'Iron dust', 1),
+    (3, 'Iron ingot', 1, 'Coal', 0.125),
+    (1, 'Dusty coal', 8, 'Coal', 0.5),
+    (1, 'Iron dust', 2, 'Iron ore', 1),
+    (1, 'Iron track', 8, 'Iron ingot', 6),
+    (1, 'Iron track', 8, 'Stick', 1)
+    ;
+
+SELECT *
+FROM recipe;
+
+-- Get number of variants in the bill of materials tree.
+WITH cte AS (
+    WITH RECURSIVE
+        input(recipe_variant, output_item, input_item) AS (
+            SELECT recipe_variant, output_item, input_item
+            FROM recipe
+            WHERE output_item = 'Iron track'
+                AND recipe_variant = 1
+            UNION
+            SELECT next.recipe_variant, next.output_item, next.input_item
+            FROM recipe next, input current
+            WHERE next.output_item = current.input_item
+        )
+    SELECT DISTINCT recipe_variant, output_item
+    FROM input i
+)
+SELECT output_item, COUNT(*) AS variant_count
+FROM cte
+GROUP BY output_item;
+
+-- Bill of materials given as whole inputs to outputs, no aggregation.
+WITH cte AS (
+    WITH RECURSIVE
+        input(n) AS (
+            VALUES('Iron track')
+            UNION
+            SELECT input_item FROM recipe, input
+            WHERE recipe.output_item=input.n
+        )
+    SELECT r.output_quantity, r.output_item, r.input_item, r.input_quantity,
+        (CASE r.output_item WHEN 'Iron track' THEN 1 ELSE 2 END) AS sort
+    FROM recipe r
+    WHERE r.output_item IN input
+    ORDER BY sort,r.output_item)
+SELECT output_item, output_quantity, input_item, input_quantity
+FROM cte;
+
+WITH cte AS (
+    WITH RECURSIVE
+        input(recipe_variant, output_item, output_quantity, input_item, input_quantity) AS (
+            SELECT recipe_variant, output_item, 1024*output_quantity, input_item, 1024*input_quantity
+            FROM recipe
+            WHERE output_item = 'Iron track'
+                AND recipe_variant = 1
+            UNION
+            SELECT next.recipe_variant, next.output_item, current.input_quantity, next.input_item, (current.input_quantity / next.output_quantity * next.input_quantity)
+            FROM input current
+                JOIN recipe next
+                ON next.output_item = current.input_item 
+            WHERE 1=1
+                -- Add this line for each variant you have
+                AND (next.output_item <> 'Iron ingot' OR (next.output_item = 'Iron ingot' AND next.recipe_variant = 1))
+        )
+    SELECT *,
+        (CASE i.output_item WHEN 'Iron track' THEN 1 ELSE 2 END) AS sort
+    FROM input i
+)
+SELECT recipe_variant,
+    output_item,
+    output_quantity,
+    input_item,
+    input_quantity
+FROM cte
+ORDER BY sort, output_item;
+
+--ORDER BY output_item, recipe_variant;
 
 --------------------------------------------------------------------------------
 
